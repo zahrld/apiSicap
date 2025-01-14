@@ -6,9 +6,6 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Start output buffering
-ob_start();
-
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -84,10 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     'gambar' => $gambar_string
                 ]
             ];
-            echo json_encode([
-                'success' => false,
-                'message' => 'yes'
-            ]); 
+            echo json_encode($response); // Perbaikan di sini
         } else {
             throw new Exception(mysqli_error($koneksi));
         }
@@ -104,7 +98,4 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         'message' => 'Method tidak diizinkan'
     ]);
 }
-
-// End output buffering and clean output
-ob_end_clean();
 ?>
