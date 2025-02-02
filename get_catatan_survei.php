@@ -10,18 +10,19 @@ $db = $database->getConnection();
 if (isset($_GET['user_id'])) {
     $user_id = $_GET['user_id'];
     
-    // Ubah query untuk hanya mengambil catatan user yang login
     $query = "SELECT 
-                notes.id,
-                notes.title,
-                notes.description,
-                notes.location,
-                notes.created_at,
-                users.username as created_by
-              FROM notes 
-              JOIN users ON notes.user_id = users.id
-              WHERE notes.user_id = :user_id  /* Hanya ambil catatan user ini */
-              ORDER BY notes.created_at DESC";
+                n.id,
+                n.judul,
+                n.deskripsi,
+                n.tempat,
+                n.tanggal,
+                n.anggota,
+                n.gambar,
+                u.nama as username
+              FROM notes n
+              JOIN users u ON n.user_id = u.id
+              WHERE n.user_id = :user_id
+              ORDER BY n.tanggal DESC";
 
     $stmt = $db->prepare($query);
     $stmt->bindParam(":user_id", $user_id);
@@ -36,14 +37,22 @@ if (isset($_GET['user_id'])) {
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 extract($row);
 
+                // Konversi string gambar menjadi array
+                $gambar_array = !empty($gambar) ? explode(',', $gambar) : [];
+                
                 $note_item = array(
                     "id" => $id,
-                    "title" => $title,
-                    "description" => $description,
-                    "location" => $location,
-                    "created_at" => $created_at,
-                    "created_by" => $created_by
+                    "judul" => $judul,
+                    "deskripsi" => $deskripsi,
+                    "tempat" => $tempat,
+                    "tanggal" => $tanggal,
+                    "anggota" => $anggota,
+                    "gambar" => $gambar_array,
+                    "username" => $username,
+                    "status" => $status,
+                    "nama_user" => $nama_user
                 );
+
 
                 array_push($notes_arr, $note_item);
             }
@@ -52,7 +61,7 @@ if (isset($_GET['user_id'])) {
             echo json_encode($notes_arr);
         } else {
             http_response_code(200);
-            echo json_encode(array()); // Kembalikan array kosong jika tidak ada catatan
+            echo json_encode(array());
         }
     } catch(PDOException $e) {
         http_response_code(500);
@@ -60,5 +69,6 @@ if (isset($_GET['user_id'])) {
     }
 } else {
     http_response_code(400);
-
+    echo json_encode(array("message" => "User ID tidak ditemukan"));
+}
 ?>

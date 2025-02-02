@@ -1,7 +1,6 @@
 <?php
 require 'koneksi.php';
 
-// Enable error reporting untuk debugging
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
@@ -10,86 +9,98 @@ header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
-        // Ambil data dari request multipart form
+        // Debug semua data POST
+        error_log("Semua data POST: " . print_r($_POST, true));
+
+        // Ambil data dari request
         $user_id = $_POST['user_id'] ?? null;
         $judul = $_POST['judul'] ?? null;
         $tanggal = $_POST['tanggal'] ?? null;
         $tempat = $_POST['tempat'] ?? null;
         $deskripsi = $_POST['deskripsi'] ?? null;
         $anggota = $_POST['anggota'] ?? null;
+        $status = $_POST['status'] ?? null;
 
-        // Validasi input
-        if (empty($user_id) || empty($judul) || empty($tanggal) || 
-            empty($tempat) || empty($deskripsi)) {
-            throw new Exception('Field wajib harus diisi (user_id, judul, tanggal, tempat, deskripsi)');
+        if (!$user_id) {
+            throw new Exception('User ID tidak boleh kosong');
         }
 
-        // Handle file upload jika ada
-        $gambar_paths = [];
-        if (isset($_FILES['images'])) {
-            $upload_path = 'images_upload/';
-            
-            // Buat direktori jika belum ada
-            if (!file_exists($upload_path)) {
-                mkdir($upload_path, 0777, true);
-            }
-
-            foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
-                $file_name = $_FILES['images']['name'][$key];
-                $file_tmp = $_FILES['images']['tmp_name'][$key];
-                
-                // Generate unique filename
-                $new_file_name = uniqid() . '_' . $file_name;
-                $file_path = $upload_path . $new_file_name;
-                
-                if (move_uploaded_file($file_tmp, $file_path)) {
-                    $gambar_paths[] = $file_path;
-                }
-            }
+        // Ambil nama user dari tabel users berdasarkan user_id
+        $query_user = "SELECT nama FROM users WHERE id = ?";
+        $stmt_user = mysqli_prepare($koneksi, $query_user);
+        
+        if (!$stmt_user) {
+            throw new Exception('Gagal prepare statement untuk users: ' . mysqli_error($koneksi));
         }
 
-        $gambar_string = !empty($gambar_paths) ? implode(',', $gambar_paths) : '';
+        mysqli_stmt_bind_param($stmt_user, "i", $user_id);
+        mysqli_stmt_execute($stmt_user);
+        $result_user = mysqli_stmt_get_result($stmt_user);
 
-        // Query insert
-        $query = "INSERT INTO activities (user_id, judul, tanggal, tempat, deskripsi, anggota, gambar) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)";
+        if (!$result_user || mysqli_num_rows($result_user) == 0) {
+            throw new Exception('User tidak ditemukan');
+        }
 
+        $user_data = mysqli_fetch_assoc($result_user);
+        $nama_user = $user_data['nama'];
+
+        mysqli_stmt_close($stmt_user); // Tutup statement setelah digunakan
+
+        // Debug data
+        error_log("Data yang akan diinsert:");
+        error_log("user_id: $user_id");
+        error_log("nama_user dari database: $nama_user");
+        error_log("judul: $judul");
+
+        // Query insert dengan prepared statement
+        $query = "INSERT INTO activities (user_id, judul, tanggal, tempat, deskripsi, anggota, status, nama_user) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        
         $stmt = mysqli_prepare($koneksi, $query);
-        mysqli_stmt_bind_param($stmt, "issssss", 
-            $user_id, 
-            $judul, 
-            $tanggal, 
-            $tempat, 
-            $deskripsi, 
+        if (!$stmt) {
+            throw new Exception('Gagal prepare statement untuk activities: ' . mysqli_error($koneksi));
+        }
+
+        mysqli_stmt_bind_param($stmt, "isssssss", 
+            $user_id,
+            $judul,
+            $tanggal,
+            $tempat,
+            $deskripsi,
             $anggota,
-            $gambar_string
+            $status,
+            $nama_user
         );
 
-        if (mysqli_stmt_execute($stmt)) {
-            $activity_id = mysqli_insert_id($koneksi);
-            $response = [
-                'success' => true,
-                'message' => 'Aktivitas berhasil ditambahkan',
-                'data' => [
-                    'id' => $activity_id,
-                    'user_id' => $user_id,
-                    'judul' => $judul,
-                    'tanggal' => $tanggal,
-                    'tempat' => $tempat,
-                    'deskripsi' => $deskripsi,
-                    'anggota' => $anggota,
-                    'gambar' => $gambar_string
-                ]
-            ];
-            echo json_encode($response); // Perbaikan di sini
-        } else {
-            throw new Exception(mysqli_error($koneksi));
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception('Gagal menambahkan aktivitas: ' . mysqli_error($koneksi));
         }
 
+        $activity_id = mysqli_insert_id($koneksi);
+
+        mysqli_stmt_close($stmt); // Tutup statement setelah digunakan
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Aktivitas berhasil ditambahkan',
+            'data' => [
+                'id' => $activity_id,
+                'user_id' => $user_id,
+                'judul' => $judul,
+                'tanggal' => $tanggal,
+                'tempat' => $tempat,
+                'deskripsi' => $deskripsi,
+                'anggota' => $anggota,
+                'status' => $status,
+                'nama_user' => $nama_user
+            ]
+        ]);
+
     } catch (Exception $e) {
+        error_log("Error: " . $e->getMessage());
         echo json_encode([
             'success' => false,
-            'message' => 'Gagal menambahkan aktivitas: ' . $e->getMessage()
+            'message' => $e->getMessage()
         ]);
     }
 } else {

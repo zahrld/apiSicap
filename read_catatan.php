@@ -1,16 +1,10 @@
 <?php
 require 'koneksi.php';
 
-// Enable error reporting untuk debugging
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-// Start output buffering
-ob_start();
-
+// Set header untuk JSON response
 header('Content-Type: application/json');
 
+// Periksa apakah metode request adalah GET
 if ($_SERVER['REQUEST_METHOD'] == 'GET') {
     try {
         // Ambil user_id dari parameter URL
@@ -21,11 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
         }
 
         // Query untuk mengambil semua aktivitas user dari tabel activities
-        $query = "SELECT a.*, u.nama as nama_user 
-                 FROM activities a 
-                 LEFT JOIN users u ON a.user_id = u.id 
-                 WHERE a.user_id = ? 
-                 ORDER BY a.tanggal DESC";
+        $query = "SELECT a.*, u.nama AS nama_user 
+                  FROM activities a 
+                  LEFT JOIN users u ON a.user_id = u.id 
+                  WHERE a.user_id = ? 
+                  ORDER BY a.tanggal DESC";
 
         $stmt = mysqli_prepare($koneksi, $query);
         mysqli_stmt_bind_param($stmt, "i", $user_id);
@@ -55,10 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
                 'tempat' => $row['tempat'],
                 'deskripsi' => $row['deskripsi'],
                 'anggota' => $row['anggota'],
-                'gambar' => $row['gambar']
+                'gambar' => $row['gambar'],
+                'status' => $row['status']
+                
             ];
         }
 
+
+        // Jika data kosong, berikan pesan
         if (empty($activities)) {
             echo json_encode([
                 'success' => true,
@@ -85,7 +83,4 @@ if ($_SERVER['REQUEST_METHOD'] == 'GET') {
         'message' => 'Method tidak diizinkan'
     ]);
 }
-
-// End output buffering and clean output
-ob_end_clean();
 ?>
