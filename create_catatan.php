@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
         // Debug semua data POST
         error_log("Semua data POST: " . print_r($_POST, true));
+        error_log("Semua data FILES: " . print_r($_FILES, true));
 
         // Ambil data dari request
         $user_id = $_POST['user_id'] ?? null;
@@ -44,24 +45,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $user_data = mysqli_fetch_assoc($result_user);
         $nama_user = $user_data['nama'];
 
-        mysqli_stmt_close($stmt_user); // Tutup statement setelah digunakan
+        mysqli_stmt_close($stmt_user);
 
-        // Debug data
-        error_log("Data yang akan diinsert:");
-        error_log("user_id: $user_id");
-        error_log("nama_user dari database: $nama_user");
-        error_log("judul: $judul");
+        // Proses Upload Gambar
+        $gambar_paths = [];
+        if (!empty($_FILES['images'])) {
+            $upload_dir = 'images/upload/';
+            if (!file_exists($upload_dir)) {
+                mkdir($upload_dir, 0777, true); // Buat folder jika belum ada
+            }
+
+            foreach ($_FILES['images']['tmp_name'] as $key => $tmp_name) {
+                $file_name = time() . '_' . basename($_FILES['images']['name'][$key]);
+                $target_file = $upload_dir . $file_name;
+
+                if (move_uploaded_file($tmp_name, $target_file)) {
+                    $gambar_paths[] = $target_file; // Simpan path gambar
+                } else {
+                    error_log("Gagal upload file: " . $_FILES['images']['name'][$key]);
+                }
+            }
+        }
+
+        // Gabungkan semua gambar menjadi satu string, dipisahkan koma
+        $gambar = !empty($gambar_paths) ? implode(',', $gambar_paths) : '';
 
         // Query insert dengan prepared statement
-        $query = "INSERT INTO activities (user_id, judul, tanggal, tempat, deskripsi, anggota, status, nama_user) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $query = "INSERT INTO activities (user_id, judul, tanggal, tempat, deskripsi, anggota, status, nama_user, gambar) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = mysqli_prepare($koneksi, $query);
         if (!$stmt) {
             throw new Exception('Gagal prepare statement untuk activities: ' . mysqli_error($koneksi));
         }
 
-        mysqli_stmt_bind_param($stmt, "isssssss", 
+        mysqli_stmt_bind_param($stmt, "issssssss", 
             $user_id,
             $judul,
             $tanggal,
@@ -69,7 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $deskripsi,
             $anggota,
             $status,
-            $nama_user
+            $nama_user,
+            $gambar // Gambar disimpan sebagai string biasa, dipisahkan dengan koma
         );
 
         if (!mysqli_stmt_execute($stmt)) {
@@ -77,8 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
 
         $activity_id = mysqli_insert_id($koneksi);
-
-        mysqli_stmt_close($stmt); // Tutup statement setelah digunakan
+        mysqli_stmt_close($stmt);
 
         echo json_encode([
             'success' => true,
@@ -92,7 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 'deskripsi' => $deskripsi,
                 'anggota' => $anggota,
                 'status' => $status,
-                'nama_user' => $nama_user
+                'nama_user' => $nama_user,
+                'gambar' => $gambar_paths // Data gambar dalam array
             ]
         ]);
 
